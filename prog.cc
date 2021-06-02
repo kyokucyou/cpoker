@@ -12,9 +12,13 @@
 //    GNU Affero General Public License for more details.
 //
 //    You should have received a copy of the GNU Affero General Public License
-//    along with this program.  If not, see <https://www.gnu.org/licenses/>.#include <array>
+//    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <iostream>
+#include <string>
+#include <array>
 #include <vector>
+#include <map>
 #include <algorithm>
 #include <functional>
 #include <thread>
@@ -22,6 +26,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <cctype>
 #include <curses.h>
 
 namespace {
@@ -56,9 +61,9 @@ namespace {
   class TextMenu {
   public:
     struct Item {
-      const char *text;
+      std::string text;
       bool selectable;
-      std::function<void(Program&)> action;
+      StartMenuAction action;
     };
 
     TextMenu(const std::vector<Item>&& items) : items_(std::move(items)) { }
@@ -77,7 +82,7 @@ namespace {
       keypad(w, 1);
     }
 
-    int RunMenu(const TextMenu& menu) {
+    void RunMenu(const TextMenu& menu, Program& program, const std::string& banner = "") {
       const auto& items = menu.items();
       auto it = std::find_if(items.begin(), items.end(),
                              [] (const auto& i) { return i.selectable; });
@@ -88,12 +93,14 @@ namespace {
       auto redraw = [&]() {
         int i = 0;
         for (auto&& item : items) {
-          int len = std::strlen(item.text);
+          int len = item.text.length();
           if (i == highlighted)
             wattron(w, A_REVERSE);
-          mvwaddstr(w, ++i, (cols - len) / 2, item.text);
+          mvwaddstr(w, ++i, (cols - len) / 2, item.text.c_str());
           wattroff(w, A_REVERSE);
         }
+        if (int len = banner.length(); len != 0)
+          mvwaddstr(w, rows - 1, (cols - len - 2) / 2, (" " + banner + " ").c_str());
         wrefresh(w);
       };
 
@@ -125,6 +132,8 @@ namespace {
         }
         highlighted = std::distance(items.begin(), it);
       } while(running);
+
+      program.action(items[highlighted].action);
     }
 
     ~Window() { delwin(w); }
@@ -135,23 +144,41 @@ namespace {
   };
 
   const std::array<TextMenu::Item, 8> startMenu = {{
-    { "(1) Singleplayer",    true,  [](Program& p) { p.action(StartMenuAction::SINGLEPLAYER); } },
-    { "(2) Multiplayer",     true,  [](Program& p) { p.action(StartMenuAction::MULTIPLAYER); } },
-    { "(3) Options",         true,  [](Program& p) { p.action(StartMenuAction::OPTIONS); } },
-    { "",                    false, [](Program& p) { p.action(StartMenuAction::NONE); } },
-    { "(4) About this game", true,  [](Program& p) { p.action(StartMenuAction::ABOUT); } },
-    { "(5) Poker FAQ",       true,  [](Program& p) { p.action(StartMenuAction::FAQ); } },
-    { "",                    false, [](Program& p) { p.action(StartMenuAction::NONE); } },
-    { "(6) Exit",            true,  [](Program& p) { p.action(StartMenuAction::EXIT); } }
+    { "(1) Singleplayer",    true,  StartMenuAction::SINGLEPLAYER },
+    { "(2) Multiplayer",     true,  StartMenuAction::MULTIPLAYER  },
+    { "(3) Options",         true,  StartMenuAction::OPTIONS      },
+    { "",                    false, StartMenuAction::NONE         },
+    { "(4) About this game", true,  StartMenuAction::ABOUT        },
+    { "(5) Poker FAQ",       true,  StartMenuAction::FAQ          },
+    { "",                    false, StartMenuAction::NONE         },
+    { "(6) Exit",            true,  StartMenuAction::EXIT         }
   }};
 }
 
 int main() {
-  Program p;
-  {
-    TextMenu menu{{startMenu.begin(), startMenu.end()}};
-    Window wStart(15, 50, (LINES - 15) / 2, (COLS - 50) / 2);
-    wStart.RunMenu(menu);
+  try {
+    Program p;
+    {
+      TextMenu menu{{startMenu.begin(), startMenu.end()}};
+      Window wStart(15, 50, (LINES - 15) / 2, (COLS - 50) / 2);
+      wStart.RunMenu(menu, p, "Created by kyokucyou 2021");
+    }
+    switch (p.action()) {
+    case StartMenuAction::NONE:
+      return 1;
+    case StartMenuAction::SINGLEPLAYER:
+    case StartMenuAction::MULTIPLAYER:
+    case StartMenuAction::OPTIONS:
+    case StartMenuAction::ABOUT:
+    case StartMenuAction::FAQ:
+      break;
+    case StartMenuAction::EXIT:
+      break;
+    }
+  } catch (const std::exception& e) {
+    std::cerr << "The game has crashed due to an error." << std::endl
+              << "Error message: " << e.what() << std::endl;
   }
+
   return 0;
 }

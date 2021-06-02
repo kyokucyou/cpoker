@@ -15,18 +15,22 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # => gcc version 10.2
-CC = g++-12
-CFLAGS = -Wall -Wextra -std=c++2a -g
-LDFLAGS = -lncurses
+CC       = gcc-12
+CCP      = g++-12
+CFLAGS   = -Wall -Wextra -g
+CCPFLAGS = -std=c++2a
+LDFLAGS  = -lncurses
 PROGNAME = cpoker
 
 OBJS = prog.o
 
+all : $(PROGNAME)
+
 $(PROGNAME) : $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CCP) $(CFLAGS) $(CCPFLAGS) $(LDFLAGS) -o $@ $^
 
 %.o : %.cc
-	$(CC) -c $(CFLAGS) -o $@ $<
+	$(CCP) -c $(CFLAGS) $(CCPFLAGS) -o $@ $<
 
 .PHONY : clean
 clean :
